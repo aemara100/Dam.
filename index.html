@@ -45,6 +45,10 @@
         <div class="ramadan-box"><span id="ramadanBox" style="color: #4f46e5;">جاري حساب عداد رمضان...</span></div>
     </div>
     <script>
+        if ("Notification" in window) { if (Notification.permission !== "granted" && Notification.permission !== "denied") { Notification.requestPermission(); } }
+        function sendNotification(title, body) { if ("Notification" in window && Notification.permission === "granted") { new Notification(title, { body: body, icon: "https://cdn-icons-png.flaticon.com/512/3222/3222807.png" }); } }
+        let notified15Min = {}; let notifiedExact = {}; let ramadanNotified = {};
+
         function formatTime12h(time24) { if (!time24) return '--:--'; let [hours, minutes] = time24.split(':'); let h = parseInt(hours, 10); h = h % 12; h = h ? h : 12; return `${h}:${minutes}`; }
         let globalPrayerTimes = {};
         function updateGregorianDate() { const now = new Date(); document.getElementById('gregYear').textContent = now.getFullYear(); document.getElementById('gregMonth').textContent = now.toLocaleDateString('ar-EG', { month: 'long' }); document.getElementById('gregDay').textContent = now.getDate(); }
@@ -66,26 +70,18 @@
             if (!nextPrayer) { nextPrayer = timesList[0].name; nextTime = new Date(timesList[0].time.getTime() + 24 * 60 * 60 * 1000); }
             const diff = nextTime - now; const h = Math.floor(diff / 3600000).toString().padStart(2, '0'); const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0'); const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
             document.getElementById('nextPrayerName').textContent = nextPrayer; document.getElementById('countdown').textContent = `${h}:${m}:${s}`;
+
+            const todayStr = now.toDateString(); const prayerKey = todayStr + '-' + nextPrayer;
+            if (diff > 0 && diff <= 15 * 60 * 1000 && diff > 14 * 60 * 1000) { if (!notified15Min[prayerKey]) { sendNotification("اقتراب موعد الصلاة", `متبقي 15 دقيقة على صلاة ${nextPrayer}`); notified15Min[prayerKey] = true; } }
+            if (diff <= 1000 && diff > -1000) { if (!notifiedExact[prayerKey]) { sendNotification("حان الآن موعد الصلاة", `الله أكبر، حان الآن موعد صلاة ${nextPrayer}`); notifiedExact[prayerKey] = true; if (navigator.vibrate) navigator.vibrate([200, 100, 200]); } }
         }
         function updateRamadanCountdown() {
             const now = new Date(); const box = document.getElementById('ramadanBox');
             let hy, hm, hd;
             try { const parts = new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', { year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(now); hy = parseInt(parts.find(p => p.type === 'year').value); hm = parseInt(parts.find(p => p.type === 'month').value); hd = parseInt(parts.find(p => p.type === 'day').value); } catch (e) { hy = 1448; hm = 9; hd = 1; }
-            if (hm === 9) { let remaining = 30 - hd; if (remaining <= 0) { box.innerHTML = "عيد فطر مبارك 🌙"; } else { box.innerHTML = `متبقي: <span class="ramadan-countdown-text">${remaining} أيام</span> على انتهاء رمضان`; } } 
+            if (hm === 9) { let remaining = 30 - hd; if (remaining <= 0) { box.innerHTML = "عيد فطر مبارك 🌙"; } else { box.innerHTML = `متبقي: <span class="ramadan-countdown-text">${remaining} أيام</span> على انتهاء رمضان`; } const todayStr = now.toDateString(); if (hd === 10 && !ramadanNotified['day10_' + todayStr]) { sendNotification("رمضان كريم", "مضى 10 أيام من شهر رمضان المبارك، تقبل الله صيامكم."); ramadanNotified['day10_' + todayStr] = true; } if (hd === 20 && !ramadanNotified['day20_' + todayStr]) { sendNotification("رمضان كريم", "مضى 20 يوماً من شهر رمضان المبارك، تقبل الله صيامكم."); ramadanNotified['day20_' + todayStr] = true; } if (hd === 29 && !ramadanNotified['day29_' + todayStr]) { sendNotification("رمضان كريم", "غداً آخر أيام شهر رمضان المبارك، تقبل الله منا ومنكم."); ramadanNotified['day29_' + todayStr] = true; } } 
             else {
                 let targetHy = (hm < 9) ? hy : hy + 1;
                 let jd = Math.floor((11 * targetHy + 3) / 30) + 354 * targetHy + 30 * 9 - Math.floor((9 - 1) / 2) + 1 + 1948440 - 385;
                 let l = jd + 68569; let n = Math.floor((4 * l) / 146097); l = l - Math.floor((146097 * n + 3) / 4); let i = Math.floor((4000 * (l + 1)) / 1461001); l = l - Math.floor((1461 * i) / 4) + 31; let j = Math.floor((80 * l) / 2447); let day = l - Math.floor((2447 * j) / 80); l = Math.floor(j / 11); let month = j + 2 - 12 * l; let year = 100 * (n - 49) + i + l;
-                let ramadanDate = new Date(year, month - 1, day); ramadanDate.setHours(0,0,0,0); let today = new Date(); today.setHours(0,0,0,0);
-                let diffDays = Math.round((ramadanDate - today) / (1000 * 60 * 60 * 24));
-                if (diffDays === 0) { box.innerHTML = `رمضان مبارك! 🌙`; } else {
-                    let months = Math.floor(diffDays / 30); let days = diffDays % 30; let text = ""; if (months > 0) text += `${months} شهر و `; text += `${days} يوم`;
-                    box.innerHTML = `متبقي على رمضان: <span class="ramadan-countdown-text">${text}</span>`;
-                }
-            }
-        }
-        function refreshAll() { updateGregorianDate(); try { const savedData = localStorage.getItem('prayerData_Damanhour'); if (savedData) updateUI(JSON.parse(savedData)); } catch (e) {} const lastFetch = localStorage.getItem('lastFetch_Damanhour'); if (lastFetch !== new Date().toDateString()) fetchData(); updateRamadanCountdown(); }
-        setInterval(updateCountdown, 1000); setInterval(updateGregorianDate, 60000); setInterval(updateRamadanCountdown, 60000); setInterval(() => { if (new Date().getMinutes() === 0) fetchData(); }, 60000); window.addEventListener('focus', refreshAll); fetchData(); refreshAll();
-    </script>
-</body>
-</html>
+                let ramadanDate = new Date(year, month - 1, day
